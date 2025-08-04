@@ -35,6 +35,14 @@ This is a full-stack mobile application with React Native Expo frontend and Node
 - Use proper TypeScript types instead of 'any'
 - Keep components small and focused on single responsibility
 
+### Version Control Guidelines
+- **Commit Frequency Rule**: After modifying 5 files, pause development to commit changes
+- Always ensure code is in a usable/buildable state before committing
+- Write descriptive commit messages explaining what was changed and why
+- Create logical checkpoints during ongoing modifications
+- Continue development after each commit to maintain momentum
+- Use conventional commit format: `type(scope): description`
+
 ### Database Guidelines
 - Use Prisma for all database operations
 - Always use transactions for multi-table operations
