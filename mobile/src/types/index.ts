@@ -1,3 +1,6 @@
+import { StackNavigationProp } from '@react-navigation/stack';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+
 // API Response Types
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -144,25 +147,24 @@ export interface FoundItemForm {
 
 // Navigation Types
 export type RootStackParamList = {
-  Splash: undefined;
   Auth: undefined;
   Main: undefined;
-  Login: undefined;
-  Register: undefined;
-  ItemDetails: { itemId: string; type: 'lost' | 'found' };
-  ReportLost: undefined;
-  ReportFound: undefined;
+  AddItem: { itemType?: 'lost' | 'found' };
+  ItemDetails: { itemId: string; itemType: 'lost' | 'found' };
   Chat: { roomId: string };
-  Profile: undefined;
   EditProfile: undefined;
 };
 
-export type TabParamList = {
+export type AuthStackParamList = {
+  Login: undefined;
+  Register: undefined;
+};
+
+export type MainTabParamList = {
   Home: undefined;
   Lost: undefined;
   Found: undefined;
-  Report: undefined;
-  Chats: undefined;
+  Chat: undefined;
   Profile: undefined;
 };
 
@@ -181,3 +183,11 @@ export interface AppError {
   code?: string;
   statusCode?: number;
 }
+
+// Navigation Props
+export type RootStackNavigationProp = StackNavigationProp<RootStackParamList>;
+export type AuthStackNavigationProp = StackNavigationProp<AuthStackParamList>;
+export type MainTabNavigationProp = BottomTabNavigationProp<MainTabParamList>;
+
+export type LoginStackNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
+export type RegisterStackNavigationProp = StackNavigationProp<AuthStackParamList, 'Register'>;
