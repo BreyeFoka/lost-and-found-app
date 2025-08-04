@@ -16,11 +16,11 @@ import { notFound } from './middleware/notFound';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import lostItemRoutes from './routes/lostItems';
-import foundItemRoutes from './routes/foundItems';
+import foundItemRoutes from './routes/foundItems'
 import chatRoutes from './routes/chat';
 
 // Socket service
-import { initializeSocket } from './services/socketService';
+import { initializeSocket } from './services/socketService'
 
 // Load environment variables
 dotenv.config();
