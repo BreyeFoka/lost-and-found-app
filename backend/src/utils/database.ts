@@ -17,14 +17,14 @@ class Database {
 
       // Log database queries in development
       if (process.env.NODE_ENV === 'development') {
-        Database.instance.$on('query', (e: any) => {
+        (Database.instance as any).$on('query', (e: any) => {
           logger.debug(`Query: ${e.query}`);
           logger.debug(`Params: ${e.params}`);
           logger.debug(`Duration: ${e.duration}ms`);
         });
       }
 
-      Database.instance.$on('error', (e: any) => {
+      (Database.instance as any).$on('error', (e: any) => {
         logger.error('Database error:', e);
       });
     }

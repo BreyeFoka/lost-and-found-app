@@ -17,7 +17,7 @@ import {
 
 // API Configuration
 const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:5000/api'  // Development
+  ? 'http://localhost:3001/api'  // Development
   : 'https://your-production-api.com/api';  // Production
 
 const STORAGE_KEYS = {
