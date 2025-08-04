@@ -1,0 +1,165 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  firstName   String
+  lastName    String
+  studentId   String?  @unique
+  phone       String?
+  avatar      String?
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  lostItems   LostItem[]
+  foundItems  FoundItem[]
+  chatRooms   ChatRoomParticipant[]
+  messages    Message[]
+  reports     Report[]
+
+  @@map("users")
+}
+
+model LostItem {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  location    String
+  dateLost    DateTime
+  images      String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign keys
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations
+  chatRooms   ChatRoom[]
+  reports     Report[]
+
+  @@map("lost_items")
+}
+
+model FoundItem {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  location    String
+  dateFound   DateTime
+  images      String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign keys
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations
+  chatRooms   ChatRoom[]
+  reports     Report[]
+
+  @@map("found_items")
+}
+
+model ChatRoom {
+  id          String   @id @default(cuid())
+  title       String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign keys (optional - either lost or found item)
+  lostItemId  String?
+  foundItemId String?
+  lostItem    LostItem?  @relation(fields: [lostItemId], references: [id], onDelete: Cascade)
+  foundItem   FoundItem? @relation(fields: [foundItemId], references: [id], onDelete: Cascade)
+
+  // Relations
+  participants ChatRoomParticipant[]
+  messages     Message[]
+
+  @@map("chat_rooms")
+}
+
+model ChatRoomParticipant {
+  id         String   @id @default(cuid())
+  joinedAt   DateTime @default(now())
+
+  // Foreign keys
+  userId     String
+  chatRoomId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chatRoomId])
+  @@map("chat_room_participants")
+}
+
+model Message {
+  id         String      @id @default(cuid())
+  content    String
+  type       MessageType @default(TEXT)
+  isRead     Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+
+  // Foreign keys
+  userId     String
+  chatRoomId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Report {
+  id          String     @id @default(cuid())
+  reason      String
+  description String?
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime   @default(now())
+  resolvedAt  DateTime?
+
+  // Foreign keys
+  reporterId  String
+  lostItemId  String?
+  foundItemId String?
+  reporter    User       @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  lostItem    LostItem?  @relation(fields: [lostItemId], references: [id], onDelete: Cascade)
+  foundItem   FoundItem? @relation(fields: [foundItemId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  SYSTEM
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
