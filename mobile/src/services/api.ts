@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { 
   ApiResponse, 
   AuthResponse, 
@@ -23,10 +24,22 @@ const API_BASE_URL = __DEV__
 const STORAGE_KEYS = {
   TOKEN: '@lost_found_token',
   USER: '@lost_found_user',
+  SESSION_ID: '@lost_found_session',
+  REFRESH_TOKEN: '@lost_found_refresh',
 };
+
+// Session management
+interface SessionInfo {
+  id: string;
+  lastActivity: number;
+  expiresAt: number;
+}
 
 class ApiService {
   private api: AxiosInstance;
+  private sessionTimer: NodeJS.Timeout | null = null;
+  private readonly SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+  private readonly MAX_RETRY_ATTEMPTS = 3;
 
   constructor() {
     this.api = axios.create({
@@ -37,13 +50,110 @@ class ApiService {
       },
     });
 
-    // Request interceptor to add auth token
+    this.setupInterceptors();
+    this.initializeSession();
+  }
+
+  // Secure token management
+  private async getSecureToken(): Promise<string | null> {
+    try {
+      // Try to get from secure storage first
+      const secureToken = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
+      if (secureToken) return secureToken;
+      
+      // Fallback to AsyncStorage for backward compatibility
+      return await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+    } catch (error) {
+      console.error('Error getting secure token:', error);
+      return null;
+    }
+  }
+
+  private async setSecureToken(token: string): Promise<void> {
+    try {
+      await SecureStore.setItemAsync(STORAGE_KEYS.TOKEN, token);
+      // Also store in AsyncStorage for backward compatibility
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    } catch (error) {
+      console.error('Error setting secure token:', error);
+      // Fallback to AsyncStorage only
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    }
+  }
+
+  private async removeSecureToken(): Promise<void> {
+    try {
+      await SecureStore.deleteItemAsync(STORAGE_KEYS.TOKEN);
+      await AsyncStorage.removeItem(STORAGE_KEYS.TOKEN);
+    } catch (error) {
+      console.error('Error removing secure token:', error);
+    }
+  }
+
+  // Session management
+  private async initializeSession(): Promise<void> {
+    const token = await this.getSecureToken();
+    if (token) {
+      await this.updateSessionActivity();
+      this.startSessionTimer();
+    }
+  }
+
+  private async updateSessionActivity(): Promise<void> {
+    const now = Date.now();
+    const sessionInfo: SessionInfo = {
+      id: Math.random().toString(36).substr(2, 9),
+      lastActivity: now,
+      expiresAt: now + this.SESSION_TIMEOUT
+    };
+    
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SESSION_ID, JSON.stringify(sessionInfo));
+    } catch (error) {
+      console.error('Error updating session activity:', error);
+    }
+  }
+
+  private startSessionTimer(): void {
+    if (this.sessionTimer) {
+      clearTimeout(this.sessionTimer);
+    }
+    
+    this.sessionTimer = setTimeout(async () => {
+      await this.handleSessionTimeout();
+    }, this.SESSION_TIMEOUT);
+  }
+
+  private async handleSessionTimeout(): Promise<void> {
+    console.log('Session timed out, logging out user');
+    await this.logout();
+  }
+
+  private async isSessionValid(): Promise<boolean> {
+    try {
+      const sessionData = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_ID);
+      if (!sessionData) return false;
+      
+      const session: SessionInfo = JSON.parse(sessionData);
+      return Date.now() < session.expiresAt;
+    } catch (error) {
+      console.error('Error checking session validity:', error);
+      return false;
+    }
+  }
+
+  private setupInterceptors(): void {
+    // Request interceptor to add auth token and session management
     this.api.interceptors.request.use(
       async (config) => {
-        const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+        const token = await this.getSecureToken();
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
+        
+        // Update session activity
+        await this.updateSessionActivity();
+        
         return config;
       },
       (error) => Promise.reject(error)
@@ -67,9 +177,12 @@ class ApiService {
     const response = await this.api.post<ApiResponse<AuthResponse>>('/auth/login', credentials);
     const { user, token } = response.data.data!;
     
-    // Store token and user data
-    await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    // Store token and user data securely
+    await this.setSecureToken(token);
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    
+    // Initialize session
+    await this.initializeSession();
     
     return { user, token };
   }
@@ -78,15 +191,30 @@ class ApiService {
     const response = await this.api.post<ApiResponse<AuthResponse>>('/auth/register', userData);
     const { user, token } = response.data.data!;
     
-    // Store token and user data
-    await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    // Store token and user data securely
+    await this.setSecureToken(token);
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    
+    // Initialize session
+    await this.initializeSession();
     
     return { user, token };
   }
 
   async logout(): Promise<void> {
-    await AsyncStorage.multiRemove([STORAGE_KEYS.TOKEN, STORAGE_KEYS.USER]);
+    // Clear session timer
+    if (this.sessionTimer) {
+      clearTimeout(this.sessionTimer);
+      this.sessionTimer = null;
+    }
+    
+    // Remove all stored data
+    await this.removeSecureToken();
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.USER, 
+      STORAGE_KEYS.SESSION_ID, 
+      STORAGE_KEYS.REFRESH_TOKEN
+    ]);
   }
 
   async getProfile(): Promise<User> {
@@ -223,10 +351,22 @@ class ApiService {
     return formData;
   }
 
-  // Check if user is authenticated
+  // Check if user is authenticated with enhanced security
   async isAuthenticated(): Promise<boolean> {
-    const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
-    return !!token;
+    const token = await this.getSecureToken();
+    if (!token) return false;
+    
+    // Check session validity
+    const sessionValid = await this.isSessionValid();
+    if (!sessionValid) {
+      await this.logout();
+      return false;
+    }
+    
+    // Restart session timer
+    this.startSessionTimer();
+    
+    return true;
   }
 
   // Get stored user data
@@ -235,10 +375,11 @@ class ApiService {
     return userData ? JSON.parse(userData) : null;
   }
 
-  // Health check
-  async healthCheck(): Promise<{ status: string; timestamp: string }> {
+  // Enhanced health check with security validation
+  async healthCheck(): Promise<{ status: string; timestamp: string; secure: boolean }> {
     const response = await this.api.get('/health');
-    return response.data;
+    const isSecure = await this.isAuthenticated();
+    return { ...response.data, secure: isSecure };
   }
 }
 

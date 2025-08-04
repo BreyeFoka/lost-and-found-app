@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { validateRegisterForm } from '../../utils/validation';
 import { RegisterStackNavigationProp } from '../../types';
+import PasswordStrengthIndicator from '../../components/PasswordStrengthIndicator';
 
 interface Props {
   navigation: RegisterStackNavigationProp;
@@ -181,6 +182,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                   />
                 </TouchableOpacity>
               </View>
+              <PasswordStrengthIndicator password={formData.password} />
             </View>
 
             {/* Confirm Password */}

@@ -2,15 +2,19 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import helmet from 'helmet';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
+import { 
+  securityHeaders, 
+  apiRateLimit, 
+  sanitizeInput, 
+  securityLogger 
+} from './middleware/security';
 
 // Route imports
 import authRoutes from './routes/auth';
@@ -35,19 +39,16 @@ const io = new Server(server, {
 });
 
 // Middleware
-app.use(helmet());
+app.use(securityHeaders);
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use(limiter);
+// Security middleware
+app.use(securityLogger);
+app.use(sanitizeInput);
+app.use(apiRateLimit);
 
 app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
 app.use(express.json({ limit: '10mb' }));

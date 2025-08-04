@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { validateLoginForm } from '../../utils/validation';
 import { LoginStackNavigationProp } from '../../types';
+import BiometricService from '../../services/biometricService';
 
 interface Props {
   navigation: LoginStackNavigationProp;
@@ -25,6 +26,19 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+
+  useEffect(() => {
+    checkBiometricAvailability();
+  }, []);
+
+  const checkBiometricAvailability = async () => {
+    const available = await BiometricService.isAvailable();
+    const enabled = await BiometricService.isBiometricEnabled();
+    setBiometricAvailable(available);
+    setBiometricEnabled(enabled);
+  };
 
   const handleLogin = async () => {
     // Clear any previous errors
@@ -40,8 +54,39 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       setIsLoading(true);
       await login({ email: email.trim().toLowerCase(), password });
+      
+      // After successful login, prompt for biometric setup
+      if (biometricAvailable && !biometricEnabled) {
+        BiometricService.promptBiometricSetup(async () => {
+          const enabled = await BiometricService.enableBiometric({
+            email: email.trim().toLowerCase(),
+            password
+          });
+          if (enabled) {
+            setBiometricEnabled(true);
+            Alert.alert('Success', 'Biometric login has been enabled!');
+          }
+        });
+      }
     } catch (error) {
       // Error is handled by the auth context
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      setIsLoading(true);
+      const result = await BiometricService.biometricLogin();
+      
+      if (result.success && result.credentials) {
+        await login(result.credentials);
+      } else {
+        Alert.alert('Authentication Failed', result.error || 'Biometric login failed');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Biometric login failed');
     } finally {
       setIsLoading(false);
     }
@@ -165,6 +210,24 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             <Text className="mx-4 text-gray-500 text-sm">or</Text>
             <View className="flex-1 h-px bg-gray-300" />
           </View>
+
+          {/* Biometric Login */}
+          {biometricAvailable && biometricEnabled && (
+            <View className="items-center mb-6">
+              <TouchableOpacity
+                className="bg-gray-100 border border-gray-300 py-4 px-6 rounded-full items-center justify-center"
+                onPress={handleBiometricLogin}
+                disabled={isLoading || state.isLoading}
+              >
+                <View className="flex-row items-center">
+                  <Ionicons name="finger-print" size={24} color="#059669" />
+                  <Text className="text-gray-700 text-base font-medium ml-2">
+                    Use Biometric Login
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Register Link */}
           <View className="items-center">

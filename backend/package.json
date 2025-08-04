@@ -13,7 +13,13 @@
     "db:studio": "prisma studio",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["lost", "found", "students", "mobile", "api"],
+  "keywords": [
+    "lost",
+    "found",
+    "students",
+    "mobile",
+    "api"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -23,6 +29,7 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "express-rate-limit": "^8.0.1",
+    "express-slow-down": "^3.0.0",
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",

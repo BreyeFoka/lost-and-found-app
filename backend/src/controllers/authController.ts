@@ -4,6 +4,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import { validationResult } from 'express-validator';
 import { prisma } from '../utils/database';
 import { logger } from '../utils/logger';
+import { accountLockout } from '../middleware/security';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -123,6 +124,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
 
     if (!user) {
+      // Record failed attempt even for non-existent users
+      accountLockout.recordFailedAttempt(email);
       res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -133,12 +136,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
+      // Record failed login attempt
+      accountLockout.recordFailedAttempt(email);
       res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
       return;
     }
+
+    // Clear any previous failed attempts on successful login
+    accountLockout.clearAttempts(email);
 
     // Generate JWT token
     if (!process.env.JWT_SECRET) {
